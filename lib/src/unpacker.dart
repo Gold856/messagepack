@@ -42,48 +42,77 @@ class Unpacker {
     return v;
   }
 
-  /// Unpack value if it exist. Otherwise returns `null`.
-  ///
-  /// Throws [FormatException] if value is not an integer,
-  int? unpackInt() {
-    final b = _d.getUint8(_offset);
-    int? v;
-    if (b <= 0x7f || b >= 0xe0) {
-      /// Int value in fixnum range [-32..127] encoded in header 1 byte
-      v = _d.getInt8(_offset);
-      _offset += 1;
-    } else if (b == 0xcc) {
-      v = _d.getUint8(++_offset);
-      _offset += 1;
-    } else if (b == 0xcd) {
-      v = _d.getUint16(++_offset);
-      _offset += 2;
-    } else if (b == 0xce) {
-      v = _d.getUint32(++_offset);
-      _offset += 4;
-    } else if (b == 0xcf) {
-      v = _d.getUint64(++_offset);
-      _offset += 8;
-    } else if (b == 0xd0) {
-      v = _d.getInt8(++_offset);
-      _offset += 1;
-    } else if (b == 0xd1) {
-      v = _d.getInt16(++_offset);
-      _offset += 2;
-    } else if (b == 0xd2) {
-      v = _d.getInt32(++_offset);
-      _offset += 4;
-    } else if (b == 0xd3) {
-      v = _d.getInt64(++_offset);
-      _offset += 8;
-    } else if (b == 0xc0) {
-      v = null;
-      _offset += 1;
-    } else {
-      throw _formatException('integer', b);
-    }
-    return v;
+int? unpackInt() {
+  final b = _d.getUint8(_offset);
+  int? v;
+  if (b <= 0x7f || b >= 0xe0) {
+    /// Int value in fixnum range [-32..127] encoded in header 1 byte
+    v = _d.getInt8(_offset);
+    _offset += 1;
+  } else if (b == 0xcc) {
+    v = _d.getUint8(++_offset);
+    _offset += 1;
+  } else if (b == 0xcd) {
+    v = _d.getUint16(++_offset);
+    _offset += 2;
+  } else if (b == 0xce) {
+    v = _d.getUint32(++_offset);
+    _offset += 4;
+  } else if (b == 0xcf) {
+    v = _readUint64(++_offset);
+    _offset += 8;
+  } else if (b == 0xd0) {
+    v = _d.getInt8(++_offset);
+    _offset += 1;
+  } else if (b == 0xd1) {
+    v = _d.getInt16(++_offset);
+    _offset += 2;
+  } else if (b == 0xd2) {
+    v = _d.getInt32(++_offset);
+    _offset += 4;
+  } else if (b == 0xd3) {
+    v = _readInt64(++_offset);
+    _offset += 8;
+  } else if (b == 0xc0) {
+    v = null;
+    _offset += 1;
+  } else {
+    throw _formatException('integer', b);
   }
+  return v;
+}
+
+int _readUint64(int offset) {
+  const isWeb = identical(1.0, 1); // Detects if running on the web platform
+  int value;
+  if (isWeb) {
+    final hi = _d.getUint32(offset, Endian.big);
+    final lo = _d.getUint32(offset + 4, Endian.big);
+    value = (hi * 0x100000000) + lo;
+    if (value > 9007199254740991) {
+      throw FormatException("64-bit value exceeds JavaScript's safe integer range");
+    }
+  } else {
+    value = _d.getUint64(offset, Endian.big);
+  }
+  return value;
+}
+
+int _readInt64(int offset) {
+  const isWeb = identical(1.0, 1); // Detects if running on the web platform
+  int value;
+  if (isWeb) {
+    final hi = _d.getInt32(offset, Endian.big);
+    final lo = _d.getUint32(offset + 4, Endian.big);
+    value = (hi * 0x100000000) + lo;
+    if (value > 9007199254740991 || value < -9007199254740991) {
+      throw FormatException("64-bit value exceeds JavaScript's safe integer range");
+    }
+  } else {
+    value = _d.getInt64(offset, Endian.big);
+  }
+  return value;
+}
 
   /// Unpack value if it exist. Otherwise returns `null`.
   ///

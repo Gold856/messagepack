@@ -81,50 +81,83 @@ class Packer {
     }
   }
 
-  /// Pack [int] or `null`.
-  void packInt(int? v) {
-    // max 8 byte int + 1 control byte
-    if (_buf.length - _offset < 9) _nextBuf();
-    if (v == null) {
-      _d.setUint8(_offset++, 0xc0);
-    } else if (v >= 0) {
-      if (v <= 127) {
-        _d.setUint8(_offset++, v);
-      } else if (v <= 0xFF) {
-        _d.setUint8(_offset++, 0xcc);
-        _d.setUint8(_offset++, v);
-      } else if (v <= 0xFFFF) {
-        _d.setUint8(_offset++, 0xcd);
-        _d.setUint16(_offset, v);
-        _offset += 2;
-      } else if (v <= 0xFFFFFFFF) {
-        _d.setUint8(_offset++, 0xce);
-        _d.setUint32(_offset, v);
-        _offset += 4;
-      } else {
-        _d.setUint8(_offset++, 0xcf);
-        _d.setUint64(_offset, v);
-        _offset += 8;
-      }
-    } else if (v >= -32) {
-      _d.setInt8(_offset++, v);
-    } else if (v >= -128) {
-      _d.setUint8(_offset++, 0xd0);
-      _d.setInt8(_offset++, v);
-    } else if (v >= -32768) {
-      _d.setUint8(_offset++, 0xd1);
-      _d.setInt16(_offset, v);
+void packInt(int? v) {
+  // max 8 byte int + 1 control byte
+  if (_buf.length - _offset < 9) _nextBuf();
+  if (v == null) {
+    _d.setUint8(_offset++, 0xc0);
+  } else if (v >= 0) {
+    if (v <= 127) {
+      _d.setUint8(_offset++, v);
+    } else if (v <= 0xFF) {
+      _d.setUint8(_offset++, 0xcc);
+      _d.setUint8(_offset++, v);
+    } else if (v <= 0xFFFF) {
+      _d.setUint8(_offset++, 0xcd);
+      _d.setUint16(_offset, v);
       _offset += 2;
-    } else if (v >= -2147483648) {
-      _d.setUint8(_offset++, 0xd2);
-      _d.setInt32(_offset, v);
+    } else if (v <= 0xFFFFFFFF) {
+      _d.setUint8(_offset++, 0xce);
+      _d.setUint32(_offset, v);
       _offset += 4;
     } else {
-      _d.setUint8(_offset++, 0xd3);
-      _d.setInt64(_offset, v);
-      _offset += 8;
+      _d.setUint8(_offset++, 0xcf);
+      _writeUint64(v);
     }
+  } else if (v >= -32) {
+    _d.setInt8(_offset++, v);
+  } else if (v >= -128) {
+    _d.setUint8(_offset++, 0xd0);
+    _d.setInt8(_offset++, v);
+  } else if (v >= -32768) {
+    _d.setUint8(_offset++, 0xd1);
+    _d.setInt16(_offset, v);
+    _offset += 2;
+  } else if (v >= -2147483648) {
+    _d.setUint8(_offset++, 0xd2);
+    _d.setInt32(_offset, v);
+    _offset += 4;
+  } else {
+    _d.setUint8(_offset++, 0xd3);
+    _writeInt64(v);
   }
+}
+
+void _writeUint64(int v) {
+  const isWeb = identical(1.0, 1); // Detects if running on the web platform
+  if (isWeb) {
+    if (v > 9007199254740991 || v < 0) {
+      throw FormatException("64-bit value exceeds JavaScript's safe integer range");
+    }
+    final hi = (v >> 32) & 0xFFFFFFFF;
+    final lo = v & 0xFFFFFFFF;
+    _d.setUint32(_offset, hi, Endian.big);
+    _offset += 4;
+    _d.setUint32(_offset, lo, Endian.big);
+    _offset += 4;
+  } else {
+    _d.setUint64(_offset, v, Endian.big);
+    _offset += 8;
+  }
+}
+
+void _writeInt64(int v) {
+  const isWeb = identical(1.0, 1); // Detects if running on the web platform
+  if (isWeb) {
+    if (v > 9007199254740991 || v < -9007199254740991) {
+      throw FormatException("64-bit value exceeds JavaScript's safe integer range");
+    }
+    final hi = (v >> 32);
+    final lo = v & 0xFFFFFFFF;
+    _d.setInt32(_offset, hi, Endian.big);
+    _offset += 4;
+    _d.setUint32(_offset, lo, Endian.big);
+    _offset += 4;
+  } else {
+    _d.setInt64(_offset, v, Endian.big);
+    _offset += 8;
+  }
+}
 
   /// Pack [double] or `null`.
   void packDouble(double? v) {
