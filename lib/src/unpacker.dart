@@ -88,6 +88,8 @@ int _readUint64(int offset) {
   if (isWeb) {
     final hi = _d.getUint32(offset, Endian.big);
     final lo = _d.getUint32(offset + 4, Endian.big);
+    print('High: $hi');
+    print('Low: $lo');
     value = (hi * 0x100000000) + lo;
     if (value > 9007199254740991) {
       throw FormatException("64-bit value exceeds JavaScript's safe integer range");
