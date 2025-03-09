@@ -90,6 +90,7 @@ int _readUint64(int offset) {
     final lo = _d.getUint32(offset + 4, Endian.big);
     print('High: $hi');
     print('Low: $lo');
+    print('High pos: ${hi * 0x100000000}');
     value = (hi * 0x100000000) + lo;
     if (value > 9007199254740991) {
       throw FormatException("64-bit value exceeds JavaScript's safe integer range");
